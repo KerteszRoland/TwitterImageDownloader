@@ -13,7 +13,7 @@ def GetBearerToken():
 BEARER_TOKEN = GetBearerToken()
 
 
-def GetMediaUrlsByTweetId(tweet_id):
+def GetTweetWithMediaById(tweet_id):
     tweet_fields = "expansions=attachments.media_keys&media.fields=url"
     ids = "ids="+tweet_id
     url = "https://api.twitter.com/2/tweets?{}&{}".format(ids, tweet_fields)
@@ -21,13 +21,13 @@ def GetMediaUrlsByTweetId(tweet_id):
     return json_response
 
 
-def GetTweetsByHashtag(hashtag, user_access):
-    query = "%23"+hashtag
+def GetTweetsByHashtag(hashtag, user_access, quantity=10, plus_query=""):
+    query = "%23"+hashtag+" "+plus_query
     if user_access != "all":
         query += " from:"+user_access
-    query += " has:hashtags"
     tweet_fields = "tweet.fields=conversation_id"
-    url = "https://api.twitter.com/2/tweets/search/recent?query={}&{}".format(query, tweet_fields)
+    max_results = "max_results={}".format(quantity)
+    url = "https://api.twitter.com/2/tweets/search/recent?query={}&{}&{}".format(query, tweet_fields, max_results)
     response_json = SendGetRequest(url)
     return response_json
 
@@ -45,10 +45,9 @@ def SendGetRequest(url):
     return response.json()
 
 
-def GetRootTweet(tweet):
+def GetRootTweetId(tweet):
     root_tweet_id = tweet["conversation_id"]
-    root_tweet = GetMediaUrlsByTweetId(root_tweet_id)
-    return root_tweet
+    return root_tweet_id
 
 
 def SaveImage(img_url, where):
@@ -59,9 +58,9 @@ def SaveImage(img_url, where):
     file.close()
 
 
-def SaveImagesFromTwitterByHashtag(hashtag, user_access, save_dir):
+def SaveImagesFromTwitterByHashtag(hashtag, user_access, quantity, save_dir):
     image_counter = 0
-    reply_tweets = GetTweetsByHashtag(hashtag, user_access)
+    reply_tweets = GetTweetsByHashtag(hashtag, user_access, quantity)
     try:
         for reply_tweet in reply_tweets["data"]:
             root_tweet = GetRootTweet(reply_tweet)
@@ -77,4 +76,22 @@ def SaveImagesFromTwitterByHashtag(hashtag, user_access, save_dir):
     return "-- Saved {} images --".format(image_counter)
 
 
-#test print(SaveImagesFromTwitterByHashtag("tesla", "elonmusk", IMAGES_DIR))
+def Test(hashtag, user_access, quantity, save_dir):
+    image_counter = 0
+    plus_query = "has:images -is:retweet -has:videos -is:reply"
+    tweets = GetTweetsByHashtag(hashtag, user_access, quantity, plus_query)
+    for tweet in tweets["data"]:
+        tweet_with_media = GetTweetWithMediaById(tweet["conversation_id"])
+        try:
+            for image in tweet_with_media["includes"]["media"]:
+                image_counter += 1
+                image_url = image["url"]
+                SaveImage(image_url, save_dir)
+        except:
+            print(tweet_with_media)
+            print("something went wrong")
+    return "-- Saved {} images --".format(image_counter)
+
+print(Test("model3", "all", 100, IMAGES_DIR))
+#print(GetTweetsByHashtag("tesla", "RolandKertesz", 100))
+#print(SaveImagesFromTwitterByHashtag("tesla", "all", 100, IMAGES_DIR))
